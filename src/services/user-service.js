@@ -1,14 +1,17 @@
 const { StatusCodes } = require('http-status-codes');
-const { UserRepository } = require('../repositories');
+const { UserRepository, RoleRepository } = require('../repositories');
 const AppError = require('../utils/errors/app-error');
-const { Auth } = require('../utils/common');
+const { Auth, Enums } = require('../utils/common');
 
 const userRepo = new UserRepository();
+const roleRepo = new RoleRepository();
 
 async function create(data){
   try {
     console.log(data);
     const user = await userRepo.create(data);
+    const role = await roleRepo.getRoleByName(Enums.USER_ROLES_ENUMS.CUSTOMER);
+    user.addRole(role);
     return user;
   } catch (error) {
     console.log(error);
@@ -25,7 +28,7 @@ async function create(data){
 
 async function signin(data) {
   try {
-    const user = await userRepo.getUserEmail(data.email);
+    const user = await userRepo.getUserByEmail(data.email);
     if(!user){
       throw new AppError('No user found for the given email', StatusCodes.NOT_FOUND);
     }
@@ -67,8 +70,47 @@ async function isAuthenticated(token) {
   }
 }
 
+async function addRoleToUser(data) {
+  try {
+    const user = await userRepo.get(data.id);
+    if(!user){
+      throw new AppError('No user found for the given id', StatusCodes.NOT_FOUND);
+    }
+    const role = await roleRepo.getRoleByName(data.role);
+    if(!role){
+      throw new AppError('No user found for the given role', StatusCodes.NOT_FOUND);
+    }
+    user.addRole(role);
+    return user;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    console.log(error);
+    throw new AppError('Something went wrong', StatusCodes.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async function isAdmin(id) {
+  try {
+    const user = await userRepo.get(id);
+    if(!user){
+      throw new AppError('No user found for the given id', StatusCodes.NOT_FOUND);
+    }
+    const adminRole = await roleRepo.getRoleByName(Enums.USER_ROLES_ENUMS.ADMIN);
+    if(!adminRole){
+      throw new AppError('could not found the given role', StatusCodes.NOT_FOUND);
+    }
+    return user.hasRole(adminRole);
+  } catch (error) {
+    if(error instanceof AppError)throw error;
+    console.log(error);
+    throw new AppError('Something went wrong', StatusCodes.INTERNAL_SERVER_ERROR);
+  }
+}
+
 module.exports = {
   create,
   signin,
-  isAuthenticated
+  isAuthenticated,
+  addRoleToUser,
+  isAdmin
 }
